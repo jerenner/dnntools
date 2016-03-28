@@ -11,7 +11,7 @@ import tensorflow as tf
 import os
 import logging
 
-import nets.dnns
+import nets.neuralnets
 from nets.gnet import GoogleNet
 from dnninputs import *
 
@@ -36,14 +36,6 @@ if(ntrain_evts % batch_size != 0):
     logging.error("ERROR: ntrain_evts must be evenly divisible by batch_size..."); exit()
 if(nval_evts % batch_size != 0):
     logging.error("ERROR: nval_evts must be evenly divisible by batch_size..."); exit()
-
-# Calculated parameters
-batches_per_epoch = int(2*dtblk_size/batch_size)
-num_epoch_blks = num_epochs / epoch_blk_size
-num_dt_blks = ntrain_evts / dtblk_size
-pdim = int(vox_ext / vox_size)
-npix = pdim * pdim
-logging.info("Found dim of {0} for {1} pixels.".format(pdim,npix))
 
 # Constructed file names.
 fname_si = "{0}/{1}_si.h5".format(datdir,dname)
@@ -171,17 +163,16 @@ def net_setup():
     logging.info("\n\n-- net_setup():  SETTING UP NETWORK --")
 
     logging.info("Creating placeholders for input and output variables...")
-    x = tf.placeholder(tf.float32, [batch_size, 3*npix]) # npix])
-    x_image = tf.reshape(x, [-1,pdim,pdim,3])
+    x_input = tf.placeholder(tf.float32, [batch_size, 3*npix]) # npix])
     y_ = tf.placeholder(tf.float32, [batch_size, 2])
 
     # Set up the GoogleNet
     if(read_googlenet):
         logging.info("Reading in GoogLeNet model...")
-        net = GoogleNet({'data':x_image})
+        net = GoogleNet({'data':x_input})
         y_out = net.get_output()
     else:
-       y_out = nets.dnns.getNet("MNISTadv",x_image) 
+       y_out = nets.neuralnets.getNet(net_name,x_input) 
 
     # Set up for training
     logging.info("Setting up tf training variables...")
@@ -210,7 +201,7 @@ def net_setup():
         logging.info("Restoring previously trained net from file {0}".format(fn_saver))
         saver.restore(sess,fn_saver) 
 
-    return (sess,train_step,loss,x,y_,y_out,saver)
+    return (sess,train_step,loss,x_input,y_,y_out,saver)
 
 # -----------------------------------------------------------------------------------------------------
 # Main execution
