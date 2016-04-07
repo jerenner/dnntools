@@ -260,7 +260,13 @@ to the energy values in each pixel of the 2D projection:
 \end{verbatim}
 
 \noindent Note here we the last number in the square brackets is 3, for the three projections and \verb|pdim| is a number calculated in \verb|dnninputs.py| that is equal to the number of
-pixels per dimension for our data.  Furthermore, in creating the densely connected layer, the TensorFlow tutorial assumes 
+pixels per dimension for our data.  The three projections will also need to be taken into account in creating the weights for the first convolutional layer
+
+\begin{verbatim}
+ W_conv1 = weight_variable([5, 5, 3, 32])
+\end{verbatim}
+
+\noindent where note we have changed the third dimension from 1 (as in the TensorFlow tutorial)  to 3.  Furthermore, in creating the densely connected layer, the TensorFlow tutorial assumes 
 28x28 images, so that after 2 max pooling layers (each of which reduces each dimension
 by a factor of 2), we have a 7x7 image ($(28 / 2) / 2 = 7$).  In our case we need to replace those 7's by \verb|pdim / 4| (for dimension 20, this would be 5).  Overall our function would
 look something like:
@@ -419,7 +425,11 @@ file (named, for example \verb|analysis01|) and placing in it the above command,
 \noindent Note that in \texttt{mv} and \texttt{cp} and other commands, the current directory is specified by (\texttt{.}) - a single dot.  To move ``code.py'' from the directory ``srcdir'' to the current directory:
 \begin{verbatim}
   mv srcdir/code.py .
-\end{verbatim}  
+\end{verbatim}
+
+\subsubsection{\texttt{kill <PID>}}
+\noindent This command ends a process with ID \verb|<PID>|.  To view a list of running processes and process IDs, use the \verb|ps| command.  To kill all processes for a given program,
+use \verb|killall <name>|, for example \verb|killall emacs|.
 
 \bibliography{dnnopt_doc}
 \end{document}
