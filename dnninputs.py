@@ -5,13 +5,13 @@ import logging
 # ---------------------------------------------------------------------------------------------------------
 
 # Directory and run names
-datdir = "/home/user/data"                          # the base data directory
+datdir = "/home/lsantilli/data"                          # the base data directory
 dname = "vox_dnn3d_NEXT100_Paolina222_v10x10x10_r200x200x200" # the data name
-rdir = "/home/user/dnn/run"                             # the run directory
-rname = "dnn_10x10x10_basic"     # the run name
+rdir = "/home/lsantilli/dnn/run3"                             # the run directory
+rname = "dnn_10x10x10_new_gnl_2"     # the run name
 
 # Net configuration parameters
-net_name = "MNISTbasic"                    # name of the neural net described in nets/neuralnets.py
+net_name = "MNISTnew"                    # name of the neural net described in nets/neuralnets.py
 read_googlenet = False                        # set to true only if using the GoogLeNet
 train_init = True                             # if true, train from net with standard pre-training; if false, read in a previously trained net
 
@@ -21,12 +21,12 @@ vox_size = 10           # voxel size (in mm)
 vox_norm = 1.0         # voxel normalization
 
 # Parameters describing training intervals and number of events for training and validation
-ntrain_evts = 10000    # number of training evts per dataset
-nval_evts = 2000       # number of validation events
-num_epochs = 30        # total number of epochs to train
+ntrain_evts = 40000    # number of training evts per dataset
+nval_evts = 9280       # number of validation events
+num_epochs = 70        # total number of epochs to train
 epoch_blk_size = 1     # number of epochs to run per block (before reading new dataset); set equal to num_epochs unless data to be read in multiple blocks
-dtblk_size = 10000      # number of signal and background events per training block
-batch_size = 200       # training batch size
+dtblk_size = 40000      # number of signal and background events per training block
+batch_size = 320       # training batch size
 
 # Training optimizer parameters
 opt_lr = 1.0e-4        # optimizer learning rate
