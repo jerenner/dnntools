@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import logging
+import gc
 
 import nets.neuralnets
 from nets.gnet import GoogleNet
@@ -124,33 +125,80 @@ def read_data(h5f_si,h5f_bg,evt_start,evt_end):
 
     nevts = evt_end - evt_start
 
-    logging.info("-- read_data: Reading events from {0} to {1} for signal and background".format(evt_start,evt_end))
+    logging.info("-- read_data: Reading events from {0} to {1} for signal and background with {2} channels".format(evt_start,evt_end,nchannels))
 
     # Set up the data arrays.
-    dat_si = np.zeros([nevts,3*npix]); lbl_si = np.zeros([nevts,2])
-    dat_bg = np.zeros([nevts,3*npix]); lbl_bg = np.zeros([nevts,2])
+    dat_si = np.zeros([nevts,nchannels*npix]); lbl_si = np.zeros([nevts,2])
+    dat_bg = np.zeros([nevts,nchannels*npix]); lbl_bg = np.zeros([nevts,2])
 
     # Read in all events from the hdf5 files.
     ntrk = 0
     while(ntrk < nevts):
 
-        # Read the signal event.
         trkn_si = h5f_si['trk{0}'.format(evt_start+ntrk)]
-        xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
-        for xx,yy,ee in zip(xarr,yarr,earr): dat_si[ntrk][3*int(yy*pdim + xx)] += ee         # x-y projection
-        for yy,zz,ee in zip(yarr,zarr,earr): dat_si[ntrk][3*int(zz*pdim + yy) + 1] += ee     # y-z projection
-        for xx,zz,ee in zip(xarr,zarr,earr): dat_si[ntrk][3*int(zz*pdim + xx) + 2] += ee     # x-z projection
-        dat_si[ntrk] *= vox_norm/max(dat_si[ntrk])
-        lbl_si[ntrk][0] = 1    # set the label to signal
-
-        # Read the background event.
         trkn_bg = h5f_bg['trk{0}'.format(evt_start+ntrk)]
-        xarr = trkn_bg[0]; yarr = trkn_bg[1]; zarr = trkn_bg[2]; earr = trkn_bg[3]
-        for xx,yy,ee in zip(xarr,yarr,earr): dat_bg[ntrk][3*int(yy*pdim + xx)] += ee         # x-y projection
-        for yy,zz,ee in zip(yarr,zarr,earr): dat_bg[ntrk][3*int(zz*pdim + yy) + 1] += ee     # y-z projection
-        for xx,zz,ee in zip(xarr,zarr,earr): dat_bg[ntrk][3*int(zz*pdim + xx) + 2] += ee     # x-z projection
-        dat_bg[ntrk] *= vox_norm/max(dat_bg[ntrk])
-        lbl_bg[ntrk][1] = 1    # set the label to signal
+
+        if(use_3d):
+
+            # Read the signal event.
+            xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
+            for xx,yy,zz,ee in zip(xarr,yarr,zarr,earr): 
+                dat_si[ntrk][int(zz*pdim*pdim + yy*pdim + xx)] += ee
+            dat_si[ntrk] *= vox_norm/max(dat_si[ntrk])
+            lbl_si[ntrk][0] = 1    # set the label to signal
+
+            # Read the background event.
+            xarr = trkn_bg[0]; yarr = trkn_bg[1]; zarr = trkn_bg[2]; earr = trkn_bg[3]
+            for xx,yy,zz,ee in zip(xarr,yarr,zarr,earr): 
+                dat_bg[ntrk][int(zz*pdim*pdim + yy*pdim + xx)] += ee
+            dat_bg[ntrk] *= vox_norm/max(dat_bg[ntrk])
+            lbl_bg[ntrk][1] = 1    # set the label to signal
+
+        else:
+
+            if(use_proj):
+    
+                # Read the signal event.
+                xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
+                for xx,yy,ee in zip(xarr,yarr,earr): dat_si[ntrk][3*int(yy*pdim + xx)] += ee         # x-y projection
+                for yy,zz,ee in zip(yarr,zarr,earr): dat_si[ntrk][3*int(zz*pdim + yy) + 1] += ee     # y-z projection
+                for xx,zz,ee in zip(xarr,zarr,earr): dat_si[ntrk][3*int(zz*pdim + xx) + 2] += ee     # x-z projection
+                dat_si[ntrk] *= vox_norm/max(dat_si[ntrk])
+                lbl_si[ntrk][0] = 1    # set the label to signal
+        
+                # Read the background event.
+                xarr = trkn_bg[0]; yarr = trkn_bg[1]; zarr = trkn_bg[2]; earr = trkn_bg[3]
+                for xx,yy,ee in zip(xarr,yarr,earr): dat_bg[ntrk][3*int(yy*pdim + xx)] += ee         # x-y projection
+                for yy,zz,ee in zip(yarr,zarr,earr): dat_bg[ntrk][3*int(zz*pdim + yy) + 1] += ee     # y-z projection
+                for xx,zz,ee in zip(xarr,zarr,earr): dat_bg[ntrk][3*int(zz*pdim + xx) + 2] += ee     # x-z projection
+                dat_bg[ntrk] *= vox_norm/max(dat_bg[ntrk])
+                lbl_bg[ntrk][1] = 1    # set the label to signal
+    
+            else:
+    
+                # Read the signal event.
+                xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
+                for xx,yy,zz,ee in zip(xarr,yarr,zarr,earr):
+                    
+                    # Extract each channel
+                    for ch in range(nchannels):
+                        if(zz > ch*ch_blk and zz < (ch+1)*ch_blk):
+                            dat_si[ntrk][nchannels*int(yy*pdim + xx) + ch] += ee
+                    
+                dat_si[ntrk] *= vox_norm/max(dat_si[ntrk])
+                lbl_si[ntrk][0] = 1    # set the label to signal
+    
+                # Read the background event.
+                xarr = trkn_bg[0]; yarr = trkn_bg[1]; zarr = trkn_bg[2]; earr = trkn_bg[3]
+                for xx,yy,zz,ee in zip(xarr,yarr,zarr,earr):
+    
+                    # Extract each channel
+                    for ch in range(nchannels):
+                        if(zz > ch*ch_blk and zz < (ch+1)*ch_blk):
+                            dat_bg[ntrk][nchannels*int(yy*pdim + xx) + ch] += ee
+    
+                dat_bg[ntrk] *= vox_norm/max(dat_bg[ntrk])
+                lbl_bg[ntrk][1] = 1    # set the label to signal
 
         ntrk += 1
 
@@ -163,7 +211,7 @@ def net_setup():
     logging.info("\n\n-- net_setup():  SETTING UP NETWORK --")
 
     logging.info("Creating placeholders for input and output variables...")
-    x_input = tf.placeholder(tf.float32, [batch_size, 3*npix]) # npix])
+    x_input = tf.placeholder(tf.float32, [batch_size, nchannels*npix]) # npix])
     y_ = tf.placeholder(tf.float32, [batch_size, 2])
 
     # Set up the GoogleNet
@@ -216,8 +264,8 @@ h5f_si = h5py.File(fname_si,'r')
 h5f_bg = h5py.File(fname_bg,'r')
 
 # Read in a validation set for short checks on accuracy.
-dat_val_si = np.zeros([batch_size,3*npix]); lbl_val_si = np.zeros([batch_size,2])
-dat_val_bg = np.zeros([batch_size,3*npix]); lbl_val_bg = np.zeros([batch_size,2])
+dat_val_si = np.zeros([batch_size,nchannels*npix]); lbl_val_si = np.zeros([batch_size,2])
+dat_val_bg = np.zeros([batch_size,nchannels*npix]); lbl_val_bg = np.zeros([batch_size,2])
 (dat_val_si[:],lbl_val_si[:],dat_val_bg[:],lbl_val_bg[:]) = read_data(h5f_si,h5f_bg,ntrain_evts,ntrain_evts+batch_size)
 
 # Iterate over all epoch blocks.
@@ -233,8 +281,9 @@ for eblk in range(num_epoch_blks):
         # Read in the data.
         evt_start = dtblk*dtblk_size
         evt_end = (dtblk+1)*dtblk_size
-        dat_train = np.zeros([2*dtblk_size,3*npix])
+        dat_train = np.zeros([2*dtblk_size,nchannels*npix])
         lbl_train = np.zeros([2*dtblk_size,2])
+        gc.collect()  # force garbage collection to free memory
         (dat_train[0:dtblk_size],lbl_train[0:dtblk_size],dat_train[dtblk_size:],lbl_train[dtblk_size:]) = read_data(h5f_si,h5f_bg,evt_start,evt_end)
 
         # Iterate over epochs within the block.
@@ -280,12 +329,12 @@ for eblk in range(num_epoch_blks):
     logging.info("Checking accuracy after {0} epochs".format(epoch+1))
 
     # Read in the data to be used in the accuracy check.
-    dat_train_si = np.zeros([nval_evts,3*npix]); lbl_train_si = np.zeros([nval_evts,2])
-    dat_train_bg = np.zeros([nval_evts,3*npix]); lbl_train_bg = np.zeros([nval_evts,2])
+    dat_train_si = np.zeros([nval_evts,nchannels*npix]); lbl_train_si = np.zeros([nval_evts,2])
+    dat_train_bg = np.zeros([nval_evts,nchannels*npix]); lbl_train_bg = np.zeros([nval_evts,2])
     (dat_train_si[:],lbl_train_si[:],dat_train_bg[:],lbl_train_bg[:]) = read_data(h5f_si,h5f_bg,0,nval_evts)
 
-    dat_test_si = np.zeros([nval_evts,3*npix]); lbl_test_si = np.zeros([nval_evts,2])
-    dat_test_bg = np.zeros([nval_evts,3*npix]); lbl_test_bg = np.zeros([nval_evts,2])
+    dat_test_si = np.zeros([nval_evts,nchannels*npix]); lbl_test_si = np.zeros([nval_evts,2])
+    dat_test_bg = np.zeros([nval_evts,nchannels*npix]); lbl_test_bg = np.zeros([nval_evts,2])
     (dat_test_si[:],lbl_test_si[:],dat_test_bg[:],lbl_test_bg[:]) = read_data(h5f_si,h5f_bg,ntrain_evts,ntrain_evts+nval_evts)
 
     # Run the accuracy check.

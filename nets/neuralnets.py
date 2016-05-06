@@ -27,6 +27,13 @@ def bias_variable(shape):
 def conv2d(x, W):
   return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
+def conv3d(x, W):
+  return tf.nn.conv3d(x, W, strides=[1, 1, 1, 1, 1], padding='SAME')
+
+def max_pool_2x2x2(x):
+  return tf.nn.max_pool3d(x, ksize=[1, 2, 2, 2, 1],
+                           strides=[1, 2, 2, 2, 1], padding='SAME')
+
 def max_pool_2x2(x):
   return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                         strides=[1, 2, 2, 1], padding='SAME')
@@ -49,6 +56,8 @@ def getNet(name,x_input):
         return MNISTbasic_net(x_input)
     if(name == "MNISTadv"):
         return MNISTadv_net(x_input)
+    if(name == "MNISTadv3d"):
+        return MNISTadv3d_net(x_input)
     if(name== "MNISTnew"):
         return MNISTnewLS_net(x_input)
 # -----------------------------------------------------------------------------
@@ -64,10 +73,85 @@ def MNISTbasic_net(x_input):
     return y
 
 
+# Function to write for part 2.
+def MNISTadv_net(x_input):
 
-# def MNISTadv_net(x_input):
+    #print "To be written!"
+    #return 0 # Delete this line once the correct method has been written
 
-   
+    # Resize the array to pdim x pdim x 3
+    x_image = tf.reshape(x_input, [-1,pdim,pdim,nchannels])
+
+    # First convolutional layer
+    W_conv1 = weight_variable([5, 5, nchannels, 32])
+    b_conv1 = bias_variable([32])
+    h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+    h_pool1 = max_pool_2x2(h_conv1)
+
+    # Second convolutional layer
+    W_conv2 = weight_variable([5, 5, 32, 64])
+    b_conv2 = bias_variable([64])
+    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+    h_pool2 = max_pool_2x2(h_conv2)
+
+    # Densely connected layer
+    new_dim = int(pdim / 4)
+    W_fc1 = weight_variable([new_dim * new_dim * 64, 1024])
+    b_fc1 = bias_variable([1024])
+    h_pool2_flat = tf.reshape(h_pool2, [-1, new_dim*new_dim*64])
+    h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+
+    # Dropout
+    keep_prob = 0.4 #tf.placeholder("float")
+    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+
+    # Softmax readout
+    W_fc2 = weight_variable([1024, 2])
+    b_fc2 = bias_variable([2])
+    y = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+
+    return y
+
+# Function to write for part 2.
+def MNISTadv3d_net(x_input):
+
+    print "Creating 3D MNIST net..."
+
+    # Resize the array to pdim x pdim x 3
+    x_image = tf.reshape(x_input, [-1,pdim,pdim,pdim,nchannels])
+
+    # First convolutional layer
+    W_conv1 = weight_variable([5, 5, 5, nchannels, 32])
+    b_conv1 = bias_variable([32])
+    h_conv1 = tf.nn.relu(conv3d(x_image, W_conv1) + b_conv1)
+    h_pool1 = max_pool_2x2x2(h_conv1)
+    print "Created first convolutional layer..."
+
+    # Second convolutional layer
+    W_conv2 = weight_variable([5, 5, 5, 32, 64])
+    b_conv2 = bias_variable([64])
+    h_conv2 = tf.nn.relu(conv3d(h_pool1, W_conv2) + b_conv2)
+    h_pool2 = max_pool_2x2x2(h_conv2)
+    print "Created second convolutional layer..."
+
+    # Densely connected layer
+    new_dim = int(pdim / 4)
+    W_fc1 = weight_variable([new_dim * new_dim * new_dim * 64, 1024])
+    b_fc1 = bias_variable([1024])
+    h_pool2_flat = tf.reshape(h_pool2, [-1, new_dim*new_dim*new_dim*64])
+    h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+    print "Created densely connected layer..."
+
+    # Dropout
+    keep_prob = 0.4 #tf.placeholder("float")
+    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+
+    # Softmax readout
+    W_fc2 = weight_variable([1024, 2])
+    b_fc2 = bias_variable([2])
+    y = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+
+    return y
 
 def MNISTnewLS_net(x_input):
 
