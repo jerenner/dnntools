@@ -5,15 +5,15 @@ import logging
 # ---------------------------------------------------------------------------------------------------------
 
 # Directory and run names
-datdir = "/home/jrenner/data"                          # the base data directory
-dname = "vox_dnn3d_NEXT100_Paolina222_v10x10x10_r200x200x200" # the data name
+datdir = "/home/jmbenlloch/dnntoy/data"                          # the base data directory
+dname = "vox_dnn3d_MAGBOX_noBrem_1M_v10x10x10_r200x200x200" # the data name
 #dname = "vox_dnn3d_MAGBOX_noBrem_B05_21k_v2x2x2_r200x200x200"
-rdir = "/home/jrenner/dnn/run"                             # the run directory
+rdir = "/home/jmbenlloch/dnn/run"                             # the run directory
 #rname = "dnn_10x10x10_zslice_test"     # the run name
-rname = "dnn_GEANT_10x10x10_3d"
+rname = "dnn_NEXT100_10x10x10_proj_smconv_1out_1si"
 
 # Net configuration parameters
-net_name = "MNISTadv3d"                    # name of the neural net described in nets/neuralnets.py
+net_name = "MNISTadv"                    # name of the neural net described in nets/neuralnets.py
 read_googlenet = False                        # set to true only if using the GoogLeNet
 train_init = True                             # if true, train from net with standard pre-training; if false, read in a previously trained net
 
@@ -23,25 +23,25 @@ vox_sizeX = 10         # voxel size x (in mm)
 vox_sizeY = 10         # voxel size y (in mm)
 vox_sizeZ = 10         # voxel size z (in mm)
 vox_norm = 1.0         # voxel normalization
-nchannels = 1         # number of channels (will be automatically set to 3 if using the projections); if < 0, use 3D
-use_proj = False
-use_3d = True
+nchannels = 20         # number of channels (will be automatically set to 3 if using the projections); if < 0, use 3D
+use_proj = True
+use_3d = False
 vox_size = 10          # voxel size (for old scripts)
 
 # Parameters describing training intervals and number of events for training and validation
-ntrain_evts = 4600    # number of training evts per dataset
-nval_evts = 200       # number of validation events
-num_epochs = 20        # total number of epochs to train
+ntrain_evts = 10000    # number of training evts per dataset
+nval_evts = 1000       # number of validation events
+num_epochs = 100        # total number of epochs to train
 epoch_blk_size = 1     # number of epochs to run per block (before reading new dataset); set equal to num_epochs unless data to be read in multiple blocks
-dtblk_size = 4600      # number of signal and background events per training block
+dtblk_size = 10000      # number of signal and background events per training block
 batch_size = 200       # training batch size
 
 # Training optimizer parameters
-opt_lr = 1.0e-3        # optimizer learning rate
+opt_lr = 1.0e-1        # optimizer learning rate
 opt_eps = 1.0e-6       # optimizer epsilon (for AdamOptimizer)
 opt_mom = 0.9          # optimizer momentum
-opt_decaybase = 0.2    # multiplicative factor for learning rate decay
-opt_ndecayepochs = 40  # decay interval: apply decay by a factor of opt_decaybase every opt_ndecayepochs epochs
+opt_decaybase = 0.1    # multiplicative factor for learning rate decay
+opt_ndecayepochs = 10  # decay interval: apply decay by a factor of opt_decaybase every opt_ndecayepochs epochs
 
 # Plotting and logging parameters
 log_to_file = True         # set to True to output log information to a file rather than the console
@@ -63,3 +63,4 @@ if(use_3d):
     nchannels = 1
     npix = pdim * pdim * pdim
 ch_blk = ((1.0*vox_ext)/vox_size) / nchannels
+print "-- nchannels = {0}, ch_blk = {1}".format(nchannels,ch_blk)
