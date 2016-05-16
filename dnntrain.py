@@ -13,7 +13,7 @@ import logging
 import gc
 
 import nets.neuralnets
-from nets.gnet import GoogleNet
+#from nets.gnet import GoogleNet
 from dnninputs import *
 
 # Ensure the appropriate directory structure exists.
@@ -179,11 +179,10 @@ def read_data(h5f_si,h5f_bg,evt_start,evt_end):
                 # Read the signal event.
                 xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
                 for xx,yy,zz,ee in zip(xarr,yarr,zarr,earr):
-                    
+                   
                     # Extract each channel
-                    for ch in range(nchannels):
-                        if(zz > ch*ch_blk and zz < (ch+1)*ch_blk):
-                            dat_si[ntrk][nchannels*int(yy*pdim + xx) + ch] += ee
+                    ch = int(zz/ch_blk)
+                    dat_si[ntrk][nchannels*int(yy*pdim + xx) + ch] += ee
                     
                 dat_si[ntrk] *= vox_norm/max(dat_si[ntrk])
                 lbl_si[ntrk][0] = 1    # set the label to signal
@@ -193,9 +192,8 @@ def read_data(h5f_si,h5f_bg,evt_start,evt_end):
                 for xx,yy,zz,ee in zip(xarr,yarr,zarr,earr):
     
                     # Extract each channel
-                    for ch in range(nchannels):
-                        if(zz > ch*ch_blk and zz < (ch+1)*ch_blk):
-                            dat_bg[ntrk][nchannels*int(yy*pdim + xx) + ch] += ee
+                    ch = int(zz/ch_blk)
+                    dat_bg[ntrk][nchannels*int(yy*pdim + xx) + ch] += ee
     
                 dat_bg[ntrk] *= vox_norm/max(dat_bg[ntrk])
                 lbl_bg[ntrk][1] = 1    # set the label to signal
@@ -278,13 +276,15 @@ for eblk in range(num_epoch_blks):
 
         logging.info("- DATA BLOCK {0}".format(dtblk))
 
-        # Read in the data.
-        evt_start = dtblk*dtblk_size
-        evt_end = (dtblk+1)*dtblk_size
-        dat_train = np.zeros([2*dtblk_size,nchannels*npix])
-        lbl_train = np.zeros([2*dtblk_size,2])
-        gc.collect()  # force garbage collection to free memory
-        (dat_train[0:dtblk_size],lbl_train[0:dtblk_size],dat_train[dtblk_size:],lbl_train[dtblk_size:]) = read_data(h5f_si,h5f_bg,evt_start,evt_end)
+        if(num_dt_blks > 1 or eblk == 0):
+
+            # Read in the data.
+            evt_start = dtblk*dtblk_size
+            evt_end = (dtblk+1)*dtblk_size
+            dat_train = np.zeros([2*dtblk_size,nchannels*npix])
+            lbl_train = np.zeros([2*dtblk_size,2])
+            gc.collect()  # force garbage collection to free memory
+            (dat_train[0:dtblk_size],lbl_train[0:dtblk_size],dat_train[dtblk_size:],lbl_train[dtblk_size:]) = read_data(h5f_si,h5f_bg,evt_start,evt_end)
 
         # Iterate over epochs within the block.
         for ep in range(epoch_blk_size):
