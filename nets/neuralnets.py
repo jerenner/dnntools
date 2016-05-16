@@ -79,30 +79,32 @@ def MNISTadv_net(x_input):
     #print "To be written!"
     #return 0 # Delete this line once the correct method has been written
 
-    # Resize the array to pdim x pdim x 3
+    # Resize the array to pdim x pdim x 10
     x_image = tf.reshape(x_input, [-1,pdim,pdim,nchannels])
 
     # First convolutional layer
-    W_conv1 = weight_variable([5, 5, nchannels, 32])
+    W_conv1 = weight_variable([3, 3, nchannels, 32])
     b_conv1 = bias_variable([32])
     h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
     h_pool1 = max_pool_2x2(h_conv1)
+    h_norm1 = tf.nn.l2_normalize(h_pool1, 3)
 
     # Second convolutional layer
-    W_conv2 = weight_variable([5, 5, 32, 64])
+    W_conv2 = weight_variable([2, 2, 32, 64])
     b_conv2 = bias_variable([64])
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+    h_conv2 = tf.nn.relu(conv2d(h_norm1, W_conv2) + b_conv2)
     h_pool2 = max_pool_2x2(h_conv2)
+    h_norm2 = tf.nn.l2_normalize(h_pool2, 3)
 
     # Densely connected layer
     new_dim = int(pdim / 4)
     W_fc1 = weight_variable([new_dim * new_dim * 64, 1024])
     b_fc1 = bias_variable([1024])
-    h_pool2_flat = tf.reshape(h_pool2, [-1, new_dim*new_dim*64])
-    h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+    h_norm2_flat = tf.reshape(h_norm2, [-1, new_dim*new_dim*64])
+    h_fc1 = tf.nn.relu(tf.matmul(h_norm2_flat, W_fc1) + b_fc1)
 
     # Dropout
-    keep_prob = 0.4 #tf.placeholder("float")
+    keep_prob = 0.7 #tf.placeholder("float")
     h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
     # Softmax readout
