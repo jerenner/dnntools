@@ -121,14 +121,14 @@ def MNISTadv3d_net(x_input):
     x_image = tf.reshape(x_input, [-1,pdim,pdim,pdim,nchannels])
 
     # First convolutional layer
-    W_conv1 = weight_variable([5, 5, 5, nchannels, 32])
+    W_conv1 = weight_variable([3, 3, 3, nchannels, 32])
     b_conv1 = bias_variable([32])
     h_conv1 = tf.nn.relu(conv3d(x_image, W_conv1) + b_conv1)
     h_pool1 = max_pool_2x2x2(h_conv1)
     print "Created first convolutional layer..."
 
     # Second convolutional layer
-    W_conv2 = weight_variable([5, 5, 5, 32, 64])
+    W_conv2 = weight_variable([2, 2, 2, 32, 64])
     b_conv2 = bias_variable([64])
     h_conv2 = tf.nn.relu(conv3d(h_pool1, W_conv2) + b_conv2)
     h_pool2 = max_pool_2x2x2(h_conv2)
@@ -139,11 +139,12 @@ def MNISTadv3d_net(x_input):
     W_fc1 = weight_variable([new_dim * new_dim * new_dim * 64, 1024])
     b_fc1 = bias_variable([1024])
     h_pool2_flat = tf.reshape(h_pool2, [-1, new_dim*new_dim*new_dim*64])
+    #h_pool1_flat = tf.reshape(h_pool1, [-1, new_dim*new_dim*new_dim*32])
     h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
     print "Created densely connected layer..."
 
     # Dropout
-    keep_prob = 0.4 #tf.placeholder("float")
+    keep_prob = 0.7 #tf.placeholder("float")
     h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
     # Softmax readout
