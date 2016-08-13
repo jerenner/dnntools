@@ -62,8 +62,11 @@ def getNet(name,x_input):
         return MNISTadv_net(x_input)
     if(name == "MNISTadv3d"):
         return MNISTadv3d_net(x_input)
-    if(name== "MNISTnew"):
+    if(name == "MNISTnew"):
         return MNISTnewLS_net(x_input)
+    if(name == "NEXTGoogLe"):
+        return NEXTGoogLe_net(x_input)
+
 # -----------------------------------------------------------------------------
 # DNN definitions
 # -----------------------------------------------------------------------------
@@ -207,12 +210,12 @@ def NEXTGoogLe_net(x_input):
     b_conv4c = bias_variable([128])
     h_conv4c = tf.nn.relu(conv2d(h_conv4b, W_conv4c) + b_conv4c)
 
-    # --- Branch3: 1x1 conv (16 filters) + 5x5 conv (32 filters)
+    # --- Branch3: 1x1 conv (16 filters) + 5x5 conv (32 filters)
     W_conv4d = weight_variable([1, 1, 192, 16])
     b_conv4d = bias_variable([16])
     h_conv4d = tf.nn.relu(conv2d(h_pool2, W_conv4d) + b_conv4d)
     W_conv4e = weight_variable([5, 5, 16, 32])
-    b_conv4e = bias_variable([128])
+    b_conv4e = bias_variable([32])
     h_conv4e = tf.nn.relu(conv2d(h_conv4d, W_conv4e) + b_conv4e)
 
     # --- Branch4: 2x2 max pool, 1x1 conv (32 filters)
@@ -220,52 +223,55 @@ def NEXTGoogLe_net(x_input):
     W_conv4f = weight_variable([1, 1, 192, 32])
     b_conv4f = bias_variable([32])
     h_conv4f = tf.nn.relu(conv2d(h_pool3, W_conv4f) + b_conv4f)
-    
-    # --- Concatenation: output is (pdim/4) x (pdim/4) x 256
-    h_iout1 = tf.concat(3,h_conv4a,h_conv4c,h_conv4e,h_conv4f)
+
+    # --- Concatenation: output is (pdim/4) x (pdim/4) x 256
+    h_iout1 = tf.concat(3,[h_conv4a,h_conv4c,h_conv4e,h_conv4f])
     ###
-    
+
+    # 5x5 max pool: output is (pdim/20) x (pdim/20) x 256
+    h_pool4 = tf.nn.max_pool(h_iout1, ksize=[1, 5, 5, 1], strides=[1, 5, 5, 1], padding='SAME')
+   
     ###
     # --- Inception b
     # --- Branch1: 1x1 conv (128 filters)
     W_conv5a = weight_variable([1, 1, 256, 128])
     b_conv5a = bias_variable([128])
-    h_conv5a = tf.nn.relu(conv2d(h_iout1, W_conv5a) + b_conv5a)
+    h_conv5a = tf.nn.relu(conv2d(h_pool4, W_conv5a) + b_conv5a)
 
     # --- Branch2: 1x1 conv (128 filters) + 3x3 conv (192 filters)
     W_conv5b = weight_variable([1, 1, 256, 128])
     b_conv5b = bias_variable([128])
-    h_conv5b = tf.nn.relu(conv2d(h_iout1, W_conv5b) + b_conv5b)
+    h_conv5b = tf.nn.relu(conv2d(h_pool4, W_conv5b) + b_conv5b)
     W_conv5c = weight_variable([3, 3, 128, 192])
     b_conv5c = bias_variable([192])
     h_conv5c = tf.nn.relu(conv2d(h_conv5b, W_conv5c) + b_conv5c)
 
-    # --- Branch3: 1x1 conv (32 filters) + 5x5 conv (96 filters)
-    W_conv5d = weight_variable([1, 1, 192, 32])
+    # --- Branch3: 1x1 conv (32 filters) + 5x5 conv (96 filters)
+    W_conv5d = weight_variable([1, 1, 256, 32])
     b_conv5d = bias_variable([32])
-    h_conv5d = tf.nn.relu(conv2d(h_iout1, W_conv5d) + b_conv5d)
+    h_conv5d = tf.nn.relu(conv2d(h_pool4, W_conv5d) + b_conv5d)
     W_conv5e = weight_variable([5, 5, 32, 96])
     b_conv5e = bias_variable([96])
     h_conv5e = tf.nn.relu(conv2d(h_conv5d, W_conv5e) + b_conv5e)
 
     # --- Branch4: 2x2 max pool, 1x1 conv (64 filters)
-    h_pool4 = max_pool_2x2s1(h_iout1)
-    W_conv5f = weight_variable([1, 1, 192, 64])
+    h_pool5 = max_pool_2x2s1(h_pool4)
+    W_conv5f = weight_variable([1, 1, 256, 64])
     b_conv5f = bias_variable([64])
-    h_conv5f = tf.nn.relu(conv2d(h_pool3, W_conv5f) + b_conv5f)
+    h_conv5f = tf.nn.relu(conv2d(h_pool5, W_conv5f) + b_conv5f)
 
-    # --- Concatenation: output is (pdim/4) x (pdim/4) x 480
-    h_iout2 = tf.concat(3,h_conv5a,h_conv5c,h_conv5e,h_conv5f)
+    # --- Concatenation: output is (pdim/20) x (pdim/20) x 480
+    h_iout2 = tf.concat(3,[h_conv5a,h_conv5c,h_conv5e,h_conv5f])
     ###
 
     # 5x5 average pool
-    h_avg1 = tf.nn.avg_pool(h_iout2, ksize=[1, 5, 5, 1], strides=[1, 1, 1, 1], padding='SAME')
+    h_avg1 = tf.nn.avg_pool(h_iout2, ksize=[1, 5, 5, 1], strides=[1, 5, 5, 1], padding='SAME')
 
     # Fully-connected layer
-    new_dim = int(pdim / 4)
-    W_fc1 = weight_variable([new_dim * new_dim * new_dim * 480, 1024])
+    new_dim = int(pdim / 100)
+    W_fc1 = weight_variable([new_dim * new_dim * 480, 1024])
     b_fc1 = bias_variable([1024])
-    h_avg1_flat = tf.reshape(h_avg1, [-1, new_dim*new_dim*new_dim*480])
+    h_avg1_flat = tf.reshape(h_avg1, [-1, new_dim*new_dim*480])
     h_fc1 = tf.nn.relu(tf.matmul(h_avg1_flat, W_fc1) + b_fc1)
 
     # Dropout

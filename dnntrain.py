@@ -5,6 +5,12 @@ Trains the DNN analysis for the specified configuration
 
 """
 
+# Temporary fix to force use of user-installed modules
+#  to correct error using out-of-date "six" module which
+#  was not allowing for import of tensorflow
+import sys
+sys.path.insert(0,sys.path[4])
+
 import h5py
 import numpy as np
 import tensorflow as tf
@@ -13,7 +19,7 @@ import logging
 import gc
 
 import nets.neuralnets
-#from nets.gnet import GoogleNet
+from nets.gnet import GoogleNet
 from dnninputs import *
 
 # Ensure the appropriate directory structure exists.
@@ -26,7 +32,7 @@ if(log_to_file):
     logging.basicConfig(filename="{0}/{1}/{2}.log".format(rdir,rname,rname),format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',level=logging.DEBUG)
 else:
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',level=logging.DEBUG)
-logging.info("Params:\n ntrain_evts = {0}\n num_epochs = {1}\n epoch_blk_size = {2}\n dtblk_size = {3}\n batch_size = {4}\n nval_evts = {5}".format(ntrain_evts,num_epochs,epoch_blk_size,dtblk_size,batch_size,nval_evts))
+logging.info("Params:\n ntrain_evts = {0}\n num_epochs = {1}\n epoch_blk_size = {2}\n dtblk_size = {3}\n batch_size = {4}\n nval_evts = {5}\n opt_lr = {6}\n opt_eps = {7}\n opt_decaybase = {8}\n opt_ndecayepochs = {9}\n opt_mom = {10}".format(ntrain_evts,num_epochs,epoch_blk_size,dtblk_size,batch_size,nval_evts,opt_lr,opt_eps,opt_decaybase,opt_ndecayepochs,opt_mom))
 
 # Checks on parameters.
 if(ntrain_evts % dtblk_size != 0):
@@ -140,6 +146,8 @@ def read_data(h5f_si,h5f_bg,evt_start,evt_end):
 
         if(use_3d):
 
+            if(ntrk == 0): print "Using 3D data..."
+
             # Read the signal event.
             xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
             for xx,yy,zz,ee in zip(xarr,yarr,zarr,earr): 
@@ -157,6 +165,8 @@ def read_data(h5f_si,h5f_bg,evt_start,evt_end):
         else:
 
             if(use_proj):
+
+                if(ntrk == 0): print "Creating 3 projections from data..."
     
                 # Read the signal event.
                 xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
@@ -175,6 +185,8 @@ def read_data(h5f_si,h5f_bg,evt_start,evt_end):
                 lbl_bg[ntrk][1] = 1    # set the label to signal
     
             else:
+
+                if(ntrk == 0): print "Creating {0} z-slices from data...".format(nchannels)
     
                 # Read the signal event.
                 xarr = trkn_si[0]; yarr = trkn_si[1]; zarr = trkn_si[2]; earr = trkn_si[3]
@@ -199,6 +211,17 @@ def read_data(h5f_si,h5f_bg,evt_start,evt_end):
                 lbl_bg[ntrk][1] = 1    # set the label to signal
 
         ntrk += 1
+        if(ntrk % 1000 == 0):
+            logging.info("-- Read {0} events...".format(ntrk))
+
+    # Normalize each event.
+    for sievt in dat_si:
+        sievt[:] = sievt[:] - np.mean(sievt)
+        sievt[:] = sievt[:]/np.std(sievt)
+
+    for bgevt in dat_bg:
+        bgevt[:] = bgevt[:] - np.mean(bgevt)
+        bgevt[:] = bgevt[:]/np.std(bgevt)
 
     # Return the data and labels.
     return (dat_si,lbl_si,dat_bg,lbl_bg)
@@ -214,8 +237,9 @@ def net_setup():
 
     # Set up the GoogleNet
     if(read_googlenet):
+        x_image = tf.reshape(x_input, [-1,pdim,pdim,3])
         logging.info("Reading in GoogLeNet model...")
-        net = GoogleNet({'data':x_input})
+        net = GoogleNet({'data':x_image})
         y_out = net.get_output()
     else:
        y_out = nets.neuralnets.getNet(net_name,x_input) 
@@ -228,8 +252,8 @@ def net_setup():
     lrate = tf.train.exponential_decay(opt_lr, gstep,
                                            opt_ndecayepochs*batches_per_epoch, opt_decaybase, staircase=True)
     #train_step = tf.train.MomentumOptimizer(learning_rate=opt_lr,momentum=opt_mom).minimize(cross_entropy)
-    train_step = tf.train.AdamOptimizer(learning_rate=opt_lr,epsilon=opt_eps).minimize(cross_entropy,global_step=gstep)
-    #train_step = tf.train.GradientDescentOptimizer(0.3).minimize(cross_entropy)
+    train_step = tf.train.AdamOptimizer(learning_rate=lrate,epsilon=opt_eps).minimize(cross_entropy,global_step=gstep)
+    #train_step = tf.train.GradientDescentOptimizer(lrate).minimize(cross_entropy,global_step=gstep)
 
     logging.info("Setting up session...")
     sess = tf.Session()
@@ -241,7 +265,7 @@ def net_setup():
 
     # Load in the previously trained data.
     if(read_googlenet and train_init):
-        logging.info("Loading in previously trained GoogLeNet parameters...")
+        logging.info("NOT Loading in previously trained GoogLeNet parameters...")
         net.load('nets/params/gnet.npy', sess)
     elif(not train_init):
         logging.info("Restoring previously trained net from file {0}".format(fn_saver))
@@ -265,6 +289,10 @@ h5f_bg = h5py.File(fname_bg,'r')
 dat_val_si = np.zeros([batch_size,nchannels*npix]); lbl_val_si = np.zeros([batch_size,2])
 dat_val_bg = np.zeros([batch_size,nchannels*npix]); lbl_val_bg = np.zeros([batch_size,2])
 (dat_val_si[:],lbl_val_si[:],dat_val_bg[:],lbl_val_bg[:]) = read_data(h5f_si,h5f_bg,ntrain_evts,ntrain_evts+batch_size)
+
+# Set up the arrays for the training and validation evaluation datasets.
+dat_train_si = []; lbl_train_si = []; dat_train_bg = []; lbl_train_bg = []
+dat_test_si = []; lbl_test_si = []; dat_test_bg = []; lbl_test_bg = []
 
 # Iterate over all epoch blocks.
 for eblk in range(num_epoch_blks):
@@ -295,23 +323,23 @@ for eblk in range(num_epoch_blks):
             logging.info("--- Shuffling data...")
             perm = np.arange(len(dat_train))
             np.random.shuffle(perm)
-            dat_train = dat_train[perm]
-            lbl_train = lbl_train[perm]
+            #dat_train = dat_train[perm]
+            #lbl_train = lbl_train[perm]
 
             # Train the NN in batches.
             for bnum in range(batches_per_epoch):
 
                 logging.info("--- Training batch {0} of {1}".format(bnum,batches_per_epoch))
 
-                batch_xs = dat_train[bnum*batch_size:(bnum + 1)*batch_size,:]
-                batch_ys = lbl_train[bnum*batch_size:(bnum + 1)*batch_size,:]
+                batch_xs = dat_train[perm[bnum*batch_size:(bnum + 1)*batch_size],:]
+                batch_ys = lbl_train[perm[bnum*batch_size:(bnum + 1)*batch_size],:]
                 _, loss_val = sess.run([train_step, loss], feed_dict={x: batch_xs, y_: batch_ys})
                 logging.info("--- Got loss value of {0}".format(loss_val))
 
             # Run a short accuracy check.
             acc_train = 0.; acc_test_si = 0.; acc_test_bg = 0.
-            ltemp,ytemp = sess.run([loss,y_out],feed_dict={x: dat_train[0:batch_size], y_: lbl_train[0:batch_size]})
-            for yin,yout in zip(lbl_train[0:batch_size],ytemp):
+            ltemp,ytemp = sess.run([loss,y_out],feed_dict={x: dat_train[perm[0:batch_size]], y_: lbl_train[perm[0:batch_size]]})
+            for yin,yout in zip(lbl_train[perm[0:batch_size]],ytemp):
                 if(np.argmax(yin) == np.argmax(yout)): acc_train += 1
             acc_train /= batch_size
             ltemp,ytemp = sess.run([loss,y_out],feed_dict={x: dat_val_si, y_: lbl_val_si})
@@ -329,20 +357,23 @@ for eblk in range(num_epoch_blks):
     logging.info("Checking accuracy after {0} epochs".format(epoch+1))
 
     # Read in the data to be used in the accuracy check.
-    dat_train_si = np.zeros([nval_evts,nchannels*npix]); lbl_train_si = np.zeros([nval_evts,2])
-    dat_train_bg = np.zeros([nval_evts,nchannels*npix]); lbl_train_bg = np.zeros([nval_evts,2])
-    (dat_train_si[:],lbl_train_si[:],dat_train_bg[:],lbl_train_bg[:]) = read_data(h5f_si,h5f_bg,0,nval_evts)
+    if(len(dat_train_si) == 0):
+        dat_train_si = np.zeros([nval_evts,nchannels*npix]); lbl_train_si = np.zeros([nval_evts,2])
+        dat_train_bg = np.zeros([nval_evts,nchannels*npix]); lbl_train_bg = np.zeros([nval_evts,2])
+        (dat_train_si[:],lbl_train_si[:],dat_train_bg[:],lbl_train_bg[:]) = read_data(h5f_si,h5f_bg,0,nval_evts)
 
-    dat_test_si = np.zeros([nval_evts,nchannels*npix]); lbl_test_si = np.zeros([nval_evts,2])
-    dat_test_bg = np.zeros([nval_evts,nchannels*npix]); lbl_test_bg = np.zeros([nval_evts,2])
-    (dat_test_si[:],lbl_test_si[:],dat_test_bg[:],lbl_test_bg[:]) = read_data(h5f_si,h5f_bg,ntrain_evts,ntrain_evts+nval_evts)
+    if(len(dat_test_si) == 0):
+        dat_test_si = np.zeros([nval_evts,nchannels*npix]); lbl_test_si = np.zeros([nval_evts,2])
+        dat_test_bg = np.zeros([nval_evts,nchannels*npix]); lbl_test_bg = np.zeros([nval_evts,2])
+        (dat_test_si[:],lbl_test_si[:],dat_test_bg[:],lbl_test_bg[:]) = read_data(h5f_si,h5f_bg,ntrain_evts,ntrain_evts+nval_evts)
 
     # Run the accuracy check.
     eval_performance(f_acc,epoch,sess,loss,y_out,dat_train_si,dat_train_bg,dat_test_si,dat_test_bg)
 
-    # Save the trained model.
-    logging.info("Saving trained model to: {0}".format(fn_saver))
-    save_path = saver.save(sess, fn_saver)
+    # Save the trained model every nepoch_save epochs.
+    if(eblk % nepoch_save == 0): 
+        logging.info("Saving trained model to: {0}".format(fn_saver))
+        save_path = saver.save(sess, fn_saver)
 
 # Close the relevant files.
 f_acc.close()
