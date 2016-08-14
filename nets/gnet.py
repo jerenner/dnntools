@@ -3,7 +3,7 @@ from kaffe.tensorflow import Network
 class GoogleNet(Network):
     def setup(self):
         (self.feed('data')
-             .conv(7, 7, 64, 2, 2, name='conv1_7x7_s2')
+             .conv(7, 7, 64, 1, 1, name='conv1_7x7_s1')
              .max_pool(3, 3, 2, 2, name='pool1_3x3_s2')
              .lrn(2, 2e-05, 0.75, name='pool1_norm1')
              .conv(1, 1, 64, 1, 1, name='conv2_3x3_reduce')
@@ -153,7 +153,7 @@ class GoogleNet(Network):
 
         (self.feed('pool4_3x3_s2')
              .conv(1, 1, 32, 1, 1, name='inception_5a_5x5_reduce')
-             .conv(4, 4, 128, 1, 1, name='inception_5a_5x5'))
+             .conv(5, 5, 128, 1, 1, name='inception_5a_5x5'))
 
         (self.feed('pool4_3x3_s2')
              .max_pool(3, 3, 1, 1, name='inception_5a_pool')
@@ -172,7 +172,7 @@ class GoogleNet(Network):
 
         (self.feed('inception_5a_output')
              .conv(1, 1, 48, 1, 1, name='inception_5b_5x5_reduce')
-             .conv(4, 4, 128, 1, 1, name='inception_5b_5x5'))
+             .conv(5, 5, 128, 1, 1, name='inception_5b_5x5'))
 
         (self.feed('inception_5a_output')
              .max_pool(3, 3, 1, 1, name='inception_5b_pool')
@@ -183,6 +183,6 @@ class GoogleNet(Network):
                    'inception_5b_5x5', 
                    'inception_5b_pool_proj')
              .concat(3, name='inception_5b_output')
-             .avg_pool(4, 4, 1, 1, padding='VALID', name='pool5_7x7_s1')
+             .avg_pool(7, 7, 1, 1, padding='VALID', name='pool5_7x7_s1')
              .fc(2, relu=False, name='loss3_classifier')
              .softmax(name='prob'))
