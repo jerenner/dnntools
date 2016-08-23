@@ -38,6 +38,10 @@ def max_pool_2x2(x):
   return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                         strides=[1, 2, 2, 1], padding='SAME')
 
+def max_pool_3x3s2(x):
+  return tf.nn.max_pool(x, ksize=[1, 3, 3, 1],
+                        strides=[1, 2, 2, 1], padding='SAME')
+
 def max_pool_2x2s1(x):
   return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                         strides=[1, 1, 1, 1], padding='SAME')
@@ -168,13 +172,13 @@ def NEXTGoogLe_net(x_input):
     # Resize the array to pdim x pdim x nchannels
     x_image = tf.reshape(x_input, [-1,pdim,pdim,nchannels])
 
-    # 5x5 convolution: pdim x pdim x 64
-    W_conv1 = weight_variable([5, 5, nchannels, 64])
+    # 7x7 convolution: pdim x pdim x 64
+    W_conv1 = weight_variable([7, 7, nchannels, 64])
     b_conv1 = bias_variable([64])
     h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
 
-    # 2x2 max pool: (pdim/2) x (pdim/2) x 64
-    h_pool1 = max_pool_2x2(h_conv1)
+    # 3x3 max pool (stride 2): (pdim/2) x (pdim/2) x 64
+    h_pool1 = max_pool_3x3s2(h_conv1)
 
     # local response normalization
     h_norm1 = tf.nn.l2_normalize(h_pool1, 3)
@@ -192,11 +196,11 @@ def NEXTGoogLe_net(x_input):
     # local response normalization
     h_norm2 = tf.nn.l2_normalize(h_conv3, 3)
    
-    # 2x2 max pool: (pdim/4) x (pdim/4) x 192
-    h_pool2 = max_pool_2x2(h_norm2)
+    # 3x3 max pool (stride 2): (pdim/4) x (pdim/4) x 192
+    h_pool2 = max_pool_3x3s2(h_norm2)
 
     ###
-    # --- Inception a
+    # --- Inception 3a
     # --- Branch1: 1x1 conv (64 filters)
     W_conv4a = weight_variable([1, 1, 192, 64])
     b_conv4a = bias_variable([64])
@@ -225,23 +229,20 @@ def NEXTGoogLe_net(x_input):
     h_conv4f = tf.nn.relu(conv2d(h_pool3, W_conv4f) + b_conv4f)
 
     # --- Concatenation: output is (pdim/4) x (pdim/4) x 256
-    h_iout1 = tf.concat(3,[h_conv4a,h_conv4c,h_conv4e,h_conv4f])
+    h_iout3a = tf.concat(3,[h_conv4a,h_conv4c,h_conv4e,h_conv4f])
     ###
 
-    # 5x5 max pool: output is (pdim/20) x (pdim/20) x 256
-    h_pool4 = tf.nn.max_pool(h_iout1, ksize=[1, 5, 5, 1], strides=[1, 5, 5, 1], padding='SAME')
-   
     ###
-    # --- Inception b
+    # --- Inception 3b
     # --- Branch1: 1x1 conv (128 filters)
     W_conv5a = weight_variable([1, 1, 256, 128])
     b_conv5a = bias_variable([128])
-    h_conv5a = tf.nn.relu(conv2d(h_pool4, W_conv5a) + b_conv5a)
+    h_conv5a = tf.nn.relu(conv2d(h_iout3a, W_conv5a) + b_conv5a)
 
     # --- Branch2: 1x1 conv (128 filters) + 3x3 conv (192 filters)
     W_conv5b = weight_variable([1, 1, 256, 128])
     b_conv5b = bias_variable([128])
-    h_conv5b = tf.nn.relu(conv2d(h_pool4, W_conv5b) + b_conv5b)
+    h_conv5b = tf.nn.relu(conv2d(h_iout3a, W_conv5b) + b_conv5b)
     W_conv5c = weight_variable([3, 3, 128, 192])
     b_conv5c = bias_variable([192])
     h_conv5c = tf.nn.relu(conv2d(h_conv5b, W_conv5c) + b_conv5c)
@@ -249,29 +250,327 @@ def NEXTGoogLe_net(x_input):
     # --- Branch3: 1x1 conv (32 filters) + 5x5 conv (96 filters)
     W_conv5d = weight_variable([1, 1, 256, 32])
     b_conv5d = bias_variable([32])
-    h_conv5d = tf.nn.relu(conv2d(h_pool4, W_conv5d) + b_conv5d)
+    h_conv5d = tf.nn.relu(conv2d(h_iout1, W_conv5d) + b_conv5d)
     W_conv5e = weight_variable([5, 5, 32, 96])
     b_conv5e = bias_variable([96])
     h_conv5e = tf.nn.relu(conv2d(h_conv5d, W_conv5e) + b_conv5e)
 
     # --- Branch4: 2x2 max pool, 1x1 conv (64 filters)
-    h_pool5 = max_pool_2x2s1(h_pool4)
+    h_pool4 = max_pool_2x2s1(h_iout3a)
     W_conv5f = weight_variable([1, 1, 256, 64])
     b_conv5f = bias_variable([64])
-    h_conv5f = tf.nn.relu(conv2d(h_pool5, W_conv5f) + b_conv5f)
+    h_conv5f = tf.nn.relu(conv2d(h_pool4, W_conv5f) + b_conv5f)
 
-    # --- Concatenation: output is (pdim/20) x (pdim/20) x 480
-    h_iout2 = tf.concat(3,[h_conv5a,h_conv5c,h_conv5e,h_conv5f])
+    # --- Concatenation: output is (pdim/4) x (pdim/4) x 480
+    h_iout3b = tf.concat(3,[h_conv5a,h_conv5c,h_conv5e,h_conv5f])
     ###
 
-    # 5x5 average pool
-    h_avg1 = tf.nn.avg_pool(h_iout2, ksize=[1, 5, 5, 1], strides=[1, 5, 5, 1], padding='SAME')
+    # 3x3 max pool (stride 2): output is (pdim/8) x (pdim/8) x 480
+    h_pool4 = max_pool_3x3s2(h_iout3b)
+
+    ###
+    # --- Inception 4a
+    # --- Branch1: 1x1 conv (192 filters)
+    W_conv6a = weight_variable([1, 1, 480, 192])
+    b_conv6a = bias_variable([192])
+    h_conv6a = tf.nn.relu(conv2d(h_pool4, W_conv6a) + b_conv6a)
+
+    # --- Branch2: 1x1 conv (96 filters) + 3x3 conv (208 filters)
+    W_conv6b = weight_variable([1, 1, 480, 96])
+    b_conv6b = bias_variable([96])
+    h_conv6b = tf.nn.relu(conv2d(h_pool4, W_conv6b) + b_conv6b)
+    W_conv6c = weight_variable([3, 3, 96, 208])
+    b_conv6c = bias_variable([208])
+    h_conv6c = tf.nn.relu(conv2d(h_conv6b, W_conv6c) + b_conv6c)
+
+    # --- Branch3: 1x1 conv (16 filters) + 5x5 conv (48 filters)
+    W_conv6d = weight_variable([1, 1, 480, 16])
+    b_conv6d = bias_variable([16])
+    h_conv6d = tf.nn.relu(conv2d(h_pool4, W_conv6d) + b_conv6d)
+    W_conv6e = weight_variable([5, 5, 16, 48])
+    b_conv6e = bias_variable([48])
+    h_conv6e = tf.nn.relu(conv2d(h_conv6d, W_conv6e) + b_conv6e)
+
+    # --- Branch4: 2x2 max pool, 1x1 conv (64 filters)
+    h_pool5 = max_pool_2x2s1(h_pool4)
+    W_conv6f = weight_variable([1, 1, 480, 64])
+    b_conv6f = bias_variable([64])
+    h_conv6f = tf.nn.relu(conv2d(h_pool5, W_conv6f) + b_conv6f)
+
+    # --- Concatenation: output is (pdim/8) x (pdim/8) x 512
+    h_iout4a = tf.concat(3,[h_conv6a,h_conv6c,h_conv6e,h_conv6f])
+    ###
+
+    ###
+    # --- Inception 4b
+    # --- Branch1: 1x1 conv (160 filters)
+    W_conv7a = weight_variable([1, 1, 512, 160])
+    b_conv7a = bias_variable([160])
+    h_conv7a = tf.nn.relu(conv2d(h_iout4a, W_conv7a) + b_conv7a)
+
+    # --- Branch2: 1x1 conv (112 filters) + 3x3 conv (224 filters)
+    W_conv7b = weight_variable([1, 1, 512, 112])
+    b_conv7b = bias_variable([112])
+    h_conv7b = tf.nn.relu(conv2d(h_iout4a, W_conv7b) + b_conv7b)
+    W_conv7c = weight_variable([3, 3, 112, 224])
+    b_conv7c = bias_variable([224])
+    h_conv7c = tf.nn.relu(conv2d(h_conv7b, W_conv7c) + b_conv7c)
+
+    # --- Branch3: 1x1 conv (24 filters) + 5x5 conv (64 filters)
+    W_conv7d = weight_variable([1, 1, 512, 24])
+    b_conv7d = bias_variable([24])
+    h_conv7d = tf.nn.relu(conv2d(h_iout4a, W_conv7d) + b_conv7d)
+    W_conv7e = weight_variable([5, 5, 24, 64])
+    b_conv7e = bias_variable([64])
+    h_conv7e = tf.nn.relu(conv2d(h_conv7d, W_conv7e) + b_conv7e)
+
+    # --- Branch4: 2x2 max pool, 1x1 conv (64 filters)
+    h_pool6 = max_pool_2x2s1(h_iout4a)
+    W_conv7f = weight_variable([1, 1, 512, 64])
+    b_conv7f = bias_variable([64])
+    h_conv7f = tf.nn.relu(conv2d(h_pool6, W_conv7f) + b_conv7f)
+
+    # --- Concatenation: output is (pdim/8) x (pdim/8) x 512
+    h_iout4b = tf.concat(3,[h_conv7a,h_conv7c,h_conv7e,h_conv7f])
+    ###
+
+    ###
+    # --- Inception 4c
+    # --- Branch1: 1x1 conv (128 filters)
+    W_conv8a = weight_variable([1, 1, 512, 128])
+    b_conv8a = bias_variable([128])
+    h_conv8a = tf.nn.relu(conv2d(h_iout4b, W_conv8a) + b_conv8a)
+
+    # --- Branch2: 1x1 conv (128 filters) + 3x3 conv (256 filters)
+    W_conv8b = weight_variable([1, 1, 512, 128])
+    b_conv8b = bias_variable([128])
+    h_conv8b = tf.nn.relu(conv2d(h_iout4b, W_conv8b) + b_conv8b)
+    W_conv8c = weight_variable([3, 3, 128, 256])
+    b_conv8c = bias_variable([256])
+    h_conv8c = tf.nn.relu(conv2d(h_conv8b, W_conv8c) + b_conv8c)
+
+    # --- Branch3: 1x1 conv (24 filters) + 5x5 conv (64 filters)
+    W_conv8d = weight_variable([1, 1, 512, 24])
+    b_conv8d = bias_variable([24])
+    h_conv8d = tf.nn.relu(conv2d(h_iout4b, W_conv8d) + b_conv8d)
+    W_conv8e = weight_variable([5, 5, 24, 64])
+    b_conv8e = bias_variable([64])
+    h_conv8e = tf.nn.relu(conv2d(h_conv8d, W_conv8e) + b_conv8e)
+
+    # --- Branch4: 2x2 max pool, 1x1 conv (64 filters)
+    h_pool7 = max_pool_2x2s1(h_iout4b)
+    W_conv8f = weight_variable([1, 1, 512, 64])
+    b_conv8f = bias_variable([64])
+    h_conv8f = tf.nn.relu(conv2d(h_pool7, W_conv8f) + b_conv8f)
+
+    # --- Concatenation: output is (pdim/8) x (pdim/8) x 512
+    h_iout4c = tf.concat(3,[h_conv8a,h_conv8c,h_conv8e,h_conv8f])
+    ###
+
+    ###
+    # --- Inception 4d
+    # --- Branch1: 1x1 conv (112 filters)
+    W_conv9a = weight_variable([1, 1, 512, 112])
+    b_conv9a = bias_variable([112])
+    h_conv9a = tf.nn.relu(conv2d(h_iout4c, W_conv9a) + b_conv9a)
+
+    # --- Branch2: 1x1 conv (144 filters) + 3x3 conv (288 filters)
+    W_conv9b = weight_variable([1, 1, 512, 144])
+    b_conv9b = bias_variable([144])
+    h_conv9b = tf.nn.relu(conv2d(h_iout4c, W_conv9b) + b_conv9b)
+    W_conv9c = weight_variable([3, 3, 144, 288])
+    b_conv9c = bias_variable([288])
+    h_conv9c = tf.nn.relu(conv2d(h_conv9b, W_conv9c) + b_conv9c)
+
+    # --- Branch3: 1x1 conv (32 filters) + 5x5 conv (64 filters)
+    W_conv9d = weight_variable([1, 1, 512, 32])
+    b_conv9d = bias_variable([32])
+    h_conv9d = tf.nn.relu(conv2d(h_iout4c, W_conv9d) + b_conv9d)
+    W_conv9e = weight_variable([5, 5, 32, 64])
+    b_conv9e = bias_variable([64])
+    h_conv9e = tf.nn.relu(conv2d(h_conv9d, W_conv9e) + b_conv9e)
+
+    # --- Branch4: 2x2 max pool, 1x1 conv (64 filters)
+    h_pool8 = max_pool_2x2s1(h_iout4c)
+    W_conv9f = weight_variable([1, 1, 512, 64])
+    b_conv9f = bias_variable([64])
+    h_conv9f = tf.nn.relu(conv2d(h_pool8, W_conv9f) + b_conv9f)
+
+    # --- Concatenation: output is (pdim/8) x (pdim/8) x 528
+    h_iout4d = tf.concat(3,[h_conv9a,h_conv9c,h_conv9e,h_conv9f])
+    ###
+
+    ###
+    # --- Inception 4e
+    # --- Branch1: 1x1 conv (256 filters)
+    W_conv10a = weight_variable([1, 1, 528, 256])
+    b_conv10a = bias_variable([256])
+    h_conv10a = tf.nn.relu(conv2d(h_iout4d, W_conv9a) + b_conv9a)
+
+    # --- Branch2: 1x1 conv (160 filters) + 3x3 conv (320 filters)
+    W_conv10b = weight_variable([1, 1, 528, 160])
+    b_conv10b = bias_variable([160])
+    h_conv10b = tf.nn.relu(conv2d(h_iout4d, W_conv10b) + b_conv10b)
+    W_conv10c = weight_variable([3, 3, 160, 320])
+    b_conv10c = bias_variable([320])
+    h_conv10c = tf.nn.relu(conv2d(h_conv10b, W_conv10c) + b_conv10c)
+
+    # --- Branch3: 1x1 conv (32 filters) + 5x5 conv (128 filters)
+    W_conv10d = weight_variable([1, 1, 528, 32])
+    b_conv10d = bias_variable([32])
+    h_conv10d = tf.nn.relu(conv2d(h_iout4d, W_conv10d) + b_conv10d)
+    W_conv10e = weight_variable([5, 5, 32, 128])
+    b_conv10e = bias_variable([128])
+    h_conv10e = tf.nn.relu(conv2d(h_conv10d, W_conv10e) + b_conv10e)
+
+    # --- Branch4: 2x2 max pool, 1x1 conv (128 filters)
+    h_pool9 = max_pool_2x2s1(h_iout4d)
+    W_conv10f = weight_variable([1, 1, 528, 128])
+    b_conv10f = bias_variable([128])
+    h_conv10f = tf.nn.relu(conv2d(h_pool9, W_conv10f) + b_conv10f)
+
+    # --- Concatenation: output is (pdim/8) x (pdim/8) x 832
+    h_iout4e = tf.concat(3,[h_conv10a,h_conv10c,h_conv10e,h_conv10f])
+    ###
+
+    # 3x3 max pool (stride 2): output is (pdim/16) x (pdim/16) x 832
+    h_pool10= max_pool_3x3s2(h_iout4e)
+
+    ###
+    # --- Inception 5a
+    # --- Branch1: 1x1 conv (256 filters)
+    W_conv11a = weight_variable([1, 1, 832, 256])
+    b_conv11a = bias_variable([256])
+    h_conv11a = tf.nn.relu(conv2d(h_pool10, W_conv11a) + b_conv11a)
+
+    # --- Branch2: 1x1 conv (160 filters) + 3x3 conv (320 filters)
+    W_conv11b = weight_variable([1, 1, 832, 160])
+    b_conv11b = bias_variable([160])
+    h_conv11b = tf.nn.relu(conv2d(h_pool10, W_conv11b) + b_conv11b)
+    W_conv11c = weight_variable([3, 3, 160, 320])
+    b_conv11c = bias_variable([320])
+    h_conv11c = tf.nn.relu(conv2d(h_conv11b, W_conv11c) + b_conv11c)
+
+    # --- Branch3: 1x1 conv (32 filters) + 5x5 conv (128 filters)
+    W_conv11d = weight_variable([1, 1, 832, 32])
+    b_conv11d = bias_variable([32])
+    h_conv11d = tf.nn.relu(conv2d(h_pool10, W_conv11d) + b_conv11d)
+    W_conv11e = weight_variable([5, 5, 32, 128])
+    b_conv11e = bias_variable([128])
+    h_conv11e = tf.nn.relu(conv2d(h_conv11d, W_conv11e) + b_conv11e)
+
+    # --- Branch4: 2x2 max pool, 1x1 conv (128 filters)
+    h_pool11 = max_pool_2x2s1(h_pool10)
+    W_conv11f = weight_variable([1, 1, 832, 128])
+    b_conv11f = bias_variable([128])
+    h_conv11f = tf.nn.relu(conv2d(h_pool11, W_conv11f) + b_conv11f)
+
+    # --- Concatenation: output is (pdim/16) x (pdim/16) x 832
+    h_iout5a = tf.concat(3,[h_conv11a,h_conv11c,h_conv11e,h_conv11f])
+    ###
+
+    ###
+    # --- Inception 5b
+    # --- Branch1: 1x1 conv (384 filters)
+    W_conv12a = weight_variable([1, 1, 832, 384])
+    b_conv12a = bias_variable([384])
+    h_conv12a = tf.nn.relu(conv2d(h_iout5a, W_conv12a) + b_conv12a)
+
+    # --- Branch2: 1x1 conv (192 filters) + 3x3 conv (384 filters)
+    W_conv12b = weight_variable([1, 1, 832, 192])
+    b_conv12b = bias_variable([192])
+    h_conv12b = tf.nn.relu(conv2d(h_iout5a, W_conv12b) + b_conv12b)
+    W_conv12c = weight_variable([3, 3, 192, 384])
+    b_conv12c = bias_variable([384])
+    h_conv12c = tf.nn.relu(conv2d(h_conv12b, W_conv12c) + b_conv12c)
+
+    # --- Branch3: 1x1 conv (48 filters) + 5x5 conv (128 filters)
+    W_conv12d = weight_variable([1, 1, 832, 48])
+    b_conv12d = bias_variable([48])
+    h_conv12d = tf.nn.relu(conv2d(h_iout5a, W_conv12d) + b_conv12d)
+    W_conv12e = weight_variable([5, 5, 48, 128])
+    b_conv12e = bias_variable([128])
+    h_conv12e = tf.nn.relu(conv2d(h_conv12d, W_conv12e) + b_conv12e)
+
+    # --- Branch4: 2x2 max pool, 1x1 conv (128 filters)
+    h_pool12 = max_pool_2x2s1(h_iout5a)
+    W_conv12f = weight_variable([1, 1, 832, 128])
+    b_conv12f = bias_variable([128])
+    h_conv12f = tf.nn.relu(conv2d(h_iout5a, W_conv12f) + b_conv12f)
+
+    # --- Concatenation: output is (pdim/16) x (pdim/16) x 1024
+    h_iout5b = tf.concat(3,[h_conv12a,h_conv12c,h_conv12e,h_conv12f])
+    ###
+
+    ###
+    # -- Mid-net readout layer 1 (input is the concatenated output of inception layer 4a: (pdim/8) x (pdim/8) x 512)
+
+    # 5x5 avg. pool (stride 3); output is (pdim/16) x (pdim/16) x 512
+    h_avg1_m1 = tf.nn.avg_pool(h_iout4a, ksize=[1, 5, 5, 1], strides=[1, 3, 3, 1], padding='SAME')
+    
+    # --- 1x1 conv (128 filters): output is (pdim/16) x (pdim/16) x 128
+    W_conv1_m1 = weight_variable([1, 1, 512, 128])
+    b_conv1_m1 = bias_variable([128])
+    h_conv1_m1 = tf.nn.relu(conv2d(h_avg1_m1, W_conv1_m1) + b_conv1_m1)
+
+    # Densely connected layer (1024 neurons)
+    new_dim = int(pdim / 16)
+    W_fc1_m1 = weight_variable([new_dim * new_dim * 128, 1024])
+    b_fc1_m1 = bias_variable([1024])
+    h_convm1_flat = tf.reshape(h_conv1_m1, [-1, new_dim*new_dim*128])
+    h_fc1_m1 = tf.nn.relu(tf.matmul(h_convm1_flat, W_fc1_m1) + b_fc1_m1)
+
+    # Dropout
+    keep_prob = 0.7 #tf.placeholder("float")
+    h_fcm1_drop = tf.nn.dropout(h_fc1_m1, keep_prob)
+
+    # Softmax readout
+    W_fc2_m1 = weight_variable([1024, 2])
+    b_fc2_m1 = bias_variable([2])
+    y_m1 = tf.nn.softmax(tf.matmul(h_fcm1_drop, W_fc2_m1) + b_fc2_m1)
+
+    ###
+
+    ###
+    # -- Mid-net readout layer 2 (input is the concatenated output of inception layer 4e: (pdim/8) x (pdim/8) x 512)
+
+    # 5x5 avg. pool (stride 3); output is (pdim/16) x (pdim/16) x 512
+    h_avg1_m2 = tf.nn.avg_pool(h_iout4e, ksize=[1, 5, 5, 1], strides=[1, 3, 3, 1], padding='SAME')
+
+    # --- 1x1 conv (128 filters): output is (pdim/16) x (pdim/16) x 128
+    W_conv1_m2 = weight_variable([1, 1, 512, 128])
+    b_conv1_m2 = bias_variable([128])
+    h_conv1_m2 = tf.nn.relu(conv2d(h_avg1_m2, W_conv1_m2) + b_conv1_m2)
+
+    # Densely connected layer (1024 neurons)
+    new_dim = int(pdim / 16)
+    W_fc1_m2 = weight_variable([new_dim * new_dim * 128, 1024])
+    b_fc1_m2 = bias_variable([1024])
+    h_convm2_flat = tf.reshape(h_conv1_m2, [-1, new_dim*new_dim*128])
+    h_fc1_m2 = tf.nn.relu(tf.matmul(h_convm2_flat, W_fc1_m2) + b_fc1_m2)
+
+    # Dropout
+    keep_prob = 0.7 #tf.placeholder("float")
+    h_fcm2_drop = tf.nn.dropout(h_fc1_m2, keep_prob)
+
+    # Softmax readout
+    W_fc2_m2 = weight_variable([1024, 2])
+    b_fc2_m2 = bias_variable([2])
+    y_m2 = tf.nn.softmax(tf.matmul(h_fcm2_drop, W_fc2_m2) + b_fc2_m2)
+
+    ###
+    
+    ###
+    # -- Final readout layer
+
+    # 7x7 average pool
+    h_avg3 = tf.nn.avg_pool(h_iout5b, ksize=[1, 7, 7, 1], strides=[1, 1, 1, 1], padding='SAME')
 
     # Fully-connected layer
-    new_dim = int(pdim / 100)
-    W_fc1 = weight_variable([new_dim * new_dim * 480, 1024])
+    new_dim = int(pdim / 16)
+    W_fc1 = weight_variable([new_dim * new_dim * 1024, 1024])
     b_fc1 = bias_variable([1024])
-    h_avg1_flat = tf.reshape(h_avg1, [-1, new_dim*new_dim*480])
+    h_avg1_flat = tf.reshape(h_avg3, [-1, new_dim*new_dim*480])
     h_fc1 = tf.nn.relu(tf.matmul(h_avg1_flat, W_fc1) + b_fc1)
 
     # Dropout
@@ -282,8 +581,12 @@ def NEXTGoogLe_net(x_input):
     W_fc2 = weight_variable([1024, 2])
     b_fc2 = bias_variable([2])
     y = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+    ###
 
-    return y
+    # Create the final output layer by concatenating the 3 readout layers.
+    yout = tf.concat(1,[y,y_m1,y_m2])
+
+    return yout
 
 def MNISTnewLS_net(x_input):
 

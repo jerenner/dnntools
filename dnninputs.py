@@ -35,6 +35,7 @@ num_epochs = 100        # total number of epochs to train
 epoch_blk_size = 1     # number of epochs to run per block (before reading new dataset); set equal to num_epochs unless data to be read in multiple blocks
 dtblk_size = 10000      # number of signal and background events per training block
 batch_size = 200       # training batch size
+lbl_size = 6          # number of elements in event label (should be 2 unless training GoogLeNet, in which case it should be 6 for 3 readout layers)
 
 # Training optimizer parameters
 opt_lr = 1.0e-1        # optimizer learning rate
